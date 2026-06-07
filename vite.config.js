@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
-  base: '/snack-teacher-app/',
+  plugins: [react(), tailwindcss()],
+  base: '/snck-teacher-app/', // ⚠️ สำคัญมาก: ชื่อตรงนี้ต้องตรงกับชื่อ Repository ใน GitHub ของคุณเป๊ะๆ (สังเกตว่ามี / ปิดหัวท้าย)
 })
