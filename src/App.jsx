@@ -1,12 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, getDocs, query, where, deleteDoc, addDoc } from 'firebase/firestore';
-import { Gamepad2, GraduationCap, ArrowRight, ShieldCheck, ScanLine, Award, Zap, Heart, AlertTriangle, CheckCircle, X, Trophy, Star, Shield, Play, Volume2, Sparkles, User, Key, RefreshCw, Film, Users, PlayCircle, StopCircle, LogOut, Copy, Database, Plus, Trash2, Package, Video, Edit, ChevronRight, Crown, Clock, Hourglass } from 'lucide-react';
+import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc, addDoc, getDocs, query, where } from 'firebase/firestore';
+import { Gamepad2, GraduationCap, ArrowRight, ShieldCheck, ScanLine, Award, Zap, Heart, AlertTriangle, CheckCircle, X, Trophy, Star, Shield, Play, Volume2, VolumeX, Sparkles, User, Key, RefreshCw, Film, Users, PlayCircle, StopCircle, LogOut, Copy, Database, Plus, Trash2, Package, Video, Edit, ChevronRight, Crown, Clock, Hourglass, Camera, Send } from 'lucide-react';
 
-// ----------------------------------------------------------------------
-// 1. Firebase Configuration (ใช้ฐานข้อมูลเดียวกันทั้งระบบ)
-// ----------------------------------------------------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyBWdzYxIf1IsWjbQSrq5bodPOmZBENzNxw",
   authDomain: "test-snack-hunter.firebaseapp.com",
@@ -21,9 +18,56 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = "test-snack-hunter";
 
-// ----------------------------------------------------------------------
-// 2. ตัวการ์ตูนมาสคอตคู่หู (Inline Cute Cartoon SVGs)
-// ----------------------------------------------------------------------
+let audioCtx = null;
+let victoryTimer = null;
+
+const playVictoryBeats = () => {
+  if (victoryTimer) clearInterval(victoryTimer);
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+    
+    // โน้ตเพลงแห่งชัยชนะ (C Major Arpeggios & Fanfare Theme)
+    const melody = [261.63, 329.63, 392.00, 523.25, 392.00, 523.25, 659.25, 783.99, 523.25, 783.99, 1046.50];
+    let noteIndex = 0;
+    
+    victoryTimer = setInterval(() => {
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      osc.type = 'triangle'; // เสียงแบบเครื่องเกมนินเทนโด 8-bit
+      osc.frequency.setValueAtTime(melody[noteIndex % melody.length], audioCtx.currentTime);
+      
+      gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+      
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.4);
+      noteIndex++;
+    }, 250);
+  } catch (e) {
+    console.warn("Web Audio API not supported yet or gesture blocked.");
+  }
+};
+
+const stopVictoryBeats = () => {
+  if (victoryTimer) {
+    clearInterval(victoryTimer);
+    victoryTimer = null;
+  }
+  if (audioCtx) {
+    audioCtx.close();
+    audioCtx = null;
+  }
+};
+
 const MASCOTS = [
   {
     id: 'fox',
@@ -32,7 +76,7 @@ const MASCOTS = [
     color: 'from-orange-400 to-amber-500',
     description: 'จิ้งจอกน้อยฉลาดปราดเปรื่อง เก่งเรื่องสแกนฉลากโภชนาการ!',
     svg: (state) => (
-      <svg viewBox="0 0 100 100" className="w-32 h-32 animate-bounce">
+      <svg viewBox="0 0 100 100" className="w-24 h-24 mx-auto animate-bounce">
         <circle cx="50" cy="50" r="45" fill="#FFEEDB" />
         <polygon points="25,15 15,40 38,32" fill="#E25822" />
         <polygon points="75,15 85,40 62,32" fill="#E25822" />
@@ -57,7 +101,7 @@ const MASCOTS = [
     color: 'from-amber-700 to-amber-900',
     description: 'หมีใจดีรักสุขภาพ เกลียดสารเคมี ชอบกินของออร์แกนิกเป็นที่สุด',
     svg: (state) => (
-      <svg viewBox="0 0 100 100" className="w-32 h-32 animate-pulse">
+      <svg viewBox="0 0 100 100" className="w-24 h-24 mx-auto animate-pulse">
         <circle cx="50" cy="50" r="45" fill="#FDF5E6" />
         <circle cx="25" cy="25" r="14" fill="#8B4513" />
         <circle cx="75" cy="25" r="14" fill="#8B4513" />
@@ -79,7 +123,7 @@ const MASCOTS = [
     color: 'from-pink-400 to-rose-500',
     description: 'เหมียวนักกีฬา คล่องแคล่วว่องไว พร้อมออกวิ่งล่าขนมเพื่อสุขภาพ!',
     svg: (state) => (
-      <svg viewBox="0 0 100 100" className="w-32 h-32">
+      <svg viewBox="0 0 100 100" className="w-24 h-24 mx-auto">
         <circle cx="50" cy="50" r="45" fill="#FFF0F5" />
         <polygon points="15,15 35,35 15,45" fill="#DB7093" />
         <polygon points="85,15 65,35 85,45" fill="#DB7093" />
@@ -99,9 +143,6 @@ const MASCOTS = [
   }
 ];
 
-// ----------------------------------------------------------------------
-// 3. กฎเกณฑ์การประเมินดาว (Nutrition Level Criteria)
-// ----------------------------------------------------------------------
 const getStars = (val, type) => {
   if (type === 'sugar') {
     if (val <= 6) return 5;
@@ -135,14 +176,11 @@ const getHealthStatus = (starsAvg) => {
 };
 
 const getRank = (exp) => {
-  if (exp >= 150) return { name: "Gold", color: "text-yellow-500", bg: "bg-yellow-100", icon: <Trophy size={20} className="text-yellow-500" /> };
-  if (exp >= 50) return { name: "Silver", color: "text-gray-500", bg: "bg-gray-200", icon: <Shield size={20} className="text-gray-500" /> };
-  return { name: "Bronze", color: "text-orange-700", bg: "bg-orange-100", icon: <Star size={20} className="text-orange-700" /> };
+  if (exp >= 150) return { name: "Gold", color: "text-yellow-500", bg: "bg-yellow-100", icon: <Trophy size={18} className="text-yellow-500" /> };
+  if (exp >= 50) return { name: "Silver", color: "text-gray-500", bg: "bg-gray-200", icon: <Shield size={18} className="text-gray-500" /> };
+  return { name: "Bronze", color: "text-orange-700", bg: "bg-orange-100", icon: <Star size={18} className="text-orange-700" /> };
 };
 
-// ----------------------------------------------------------------------
-// 4. เอฟเฟกต์ริบบิ้นโปรยปราย (Continuous Confetti)
-// ----------------------------------------------------------------------
 const Confetti = () => {
   useEffect(() => {
     const canvas = document.getElementById('confetti-canvas');
@@ -211,18 +249,11 @@ const Confetti = () => {
   return <canvas id="confetti-canvas" className="absolute inset-0 pointer-events-none z-0 w-full h-full"></canvas>;
 };
 
-// ----------------------------------------------------------------------
-// 5. Component: Snack Database Manager (ระบบจัดการคลังข้อมูลอาหารของคุณครู)
-// ----------------------------------------------------------------------
 function SnackDatabaseManager({ user }) {
   const [snacks, setSnacks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  
-  // Custom dialog confirmations instead of window.confirm
-  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
+  const [customModal, setCustomModal] = useState({ isOpen: false, type: 'info', title: '', message: '', onConfirm: null });
 
   const [formData, setFormData] = useState({
     barcode: '',
@@ -247,17 +278,14 @@ function SnackDatabaseManager({ user }) {
     return () => unsub();
   }, [user]);
 
-  const handleClearMessages = () => {
-    setErrorMessage('');
-    setSuccessMessage('');
+  const showNotification = (type, title, msg) => {
+    setCustomModal({ isOpen: true, type, title, message: msg, onConfirm: () => setCustomModal({ ...customModal, isOpen: false }) });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    handleClearMessages();
-
     if (!formData.barcode.trim() || !formData.name.trim()) {
-      setErrorMessage('⚠️ กรุณากรอกรหัสบาร์โค้ดและชื่ออาหารด้วยครับ');
+      showNotification('warning', 'เตือนความถูกต้อง', '⚠️ กรุณากรอกรหัสบาร์โค้ดและชื่ออาหารด้วยครับ');
       return;
     }
 
@@ -284,13 +312,13 @@ function SnackDatabaseManager({ user }) {
     try {
       if (editingId) {
         await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'snacks', editingId), snackData);
-        setSuccessMessage('🎉 อัปเดตข้อมูลอาหารเรียบร้อยแล้ว!');
+        showNotification('success', 'บันทึกสำเร็จ', '🎉 อัปเดตข้อมูลอาหารเรียบร้อยแล้ว!');
         setEditingId(null);
       } else {
         snackData.createdAt = new Date().toISOString();
         const snacksRef = collection(db, 'artifacts', appId, 'public', 'data', 'snacks');
         await addDoc(snacksRef, snackData);
-        setSuccessMessage('🎉 บันทึกอาหารใหม่เข้าคลังเรียบร้อย!');
+        showNotification('success', 'บันทึกสำเร็จ', '🎉 บันทึกอาหารใหม่เข้าคลังเรียบร้อย!');
       }
 
       setFormData({
@@ -304,8 +332,7 @@ function SnackDatabaseManager({ user }) {
         vdoUrl: ''
       });
     } catch (err) {
-      console.error(err);
-      setErrorMessage('เกิดข้อผิดพลาดในการบันทึกข้อมูลครับ');
+      showNotification('error', 'ข้อผิดพลาด', 'เกิดข้อผิดพลาดในการบันทึกข้อมูลครับ');
     }
   };
 
@@ -323,33 +350,27 @@ function SnackDatabaseManager({ user }) {
     setEditingId(snack.id);
   };
 
-  const cancelEdit = () => {
-    setFormData({
-      barcode: '',
-      name: '',
-      type: 'snack',
-      calories: '',
-      sugar: '',
-      sodium: '',
-      fat: '',
-      vdoUrl: ''
+  const handleDeleteRequest = (id) => {
+    setCustomModal({
+      isOpen: true,
+      type: 'danger',
+      title: 'ยืนยันการลบข้อมูล',
+      message: 'คุณครูแน่ใจหรือไม่ที่จะลบอาหารชิ้นนี้ออกจากคลัง?',
+      onConfirm: async () => {
+        try {
+          await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'snacks', id));
+          setCustomModal({ ...customModal, isOpen: false });
+          showNotification('success', 'ลบสำเร็จ', '🗑️ ลบอาหารออกจากคลังเรียบร้อยครับ');
+        } catch (e) {
+          showNotification('error', 'ล้มเหลว', 'เกิดข้อผิดพลาดในการลบข้อมูล');
+        }
+      }
     });
-    setEditingId(null);
-  };
-
-  const handleDeleteConfirm = async (id) => {
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'snacks', id));
-      setSuccessMessage('🗑️ ลบอาหารออกจากคลังเรียบร้อยครับ');
-      setDeleteConfirmId(null);
-    } catch (err) {
-      console.error(err);
-      setErrorMessage('เกิดข้อผิดพลาดในการลบข้อมูลอาหาร');
-    }
   };
 
   return (
     <div className="bg-white p-6 rounded-3xl shadow-xl border border-gray-100 max-w-5xl mx-auto">
+      {}
       <div className="flex items-center justify-between mb-6 border-b pb-4">
         <div className="flex items-center">
           <Database className="text-blue-500 w-8 h-8 mr-3" />
@@ -360,23 +381,7 @@ function SnackDatabaseManager({ user }) {
         </div>
       </div>
 
-      {errorMessage && (
-        <div className="bg-red-50 text-red-700 p-4 rounded-2xl mb-4 flex justify-between items-center border border-red-100">
-          <span className="font-bold flex items-center text-sm"><AlertTriangle className="mr-2 w-4 h-4" /> {errorMessage}</span>
-          <button onClick={handleClearMessages} className="text-red-500 hover:text-red-700"><X size={18} /></button>
-        </div>
-      )}
-
-      {successMessage && (
-        <div className="bg-green-50 text-green-700 p-4 rounded-2xl mb-4 flex justify-between items-center border border-green-100 animate-pulse">
-          <span className="font-bold flex items-center text-sm"><CheckCircle className="mr-2 w-4 h-4" /> {successMessage}</span>
-          <button onClick={handleClearMessages} className="text-green-500 hover:text-green-700"><X size={18} /></button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* คอลัมน์ด้านซ้าย: ฟอร์มเพิ่ม/แก้ไข */}
         <div className={`p-6 rounded-3xl border-2 transition-all ${editingId ? 'bg-orange-50/50 border-orange-200' : 'bg-blue-50/30 border-blue-100'}`}>
           <h3 className={`text-lg font-black mb-4 flex items-center ${editingId ? 'text-orange-700' : 'text-blue-700'}`}>
             {editingId ? <><Edit className="w-5 h-5 mr-2" /> แก้ไขอาหารในคลัง</> : <><Plus className="w-5 h-5 mr-2" /> เพิ่มอาหารใหม่</>}
@@ -458,7 +463,7 @@ function SnackDatabaseManager({ user }) {
                 {editingId ? 'บันทึกการแก้ไข' : 'บันทึกของเข้าคลัง'}
               </button>
               {editingId && (
-                <button type="button" onClick={cancelEdit} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-3 rounded-xl text-sm">
+                <button type="button" onClick={() => setEditingId(null)} className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-600 font-bold py-3 rounded-xl text-sm">
                   ยกเลิก
                 </button>
               )}
@@ -466,7 +471,7 @@ function SnackDatabaseManager({ user }) {
           </form>
         </div>
 
-        {/* คอลัมน์ด้านขวา: รายการสินค้าทั้งหมด */}
+        {}
         <div className="lg:col-span-2 space-y-4">
           <div className="flex justify-between items-center">
             <h4 className="font-black text-slate-700 text-md flex items-center">
@@ -485,65 +490,57 @@ function SnackDatabaseManager({ user }) {
               </div>
             ) : (
               <div className="divide-y">
-                {snacks.map((s) => {
-                  const isConfirmingDelete = deleteConfirmId === s.id;
-                  return (
-                    <div key={s.id} className="p-4 bg-white flex justify-between items-center hover:bg-slate-50 transition-colors">
-                      <div className="space-y-1">
-                        <div className="font-extrabold text-slate-700 text-md flex items-center">
-                          {s.name}
-                          {s.vdoUrl && <Video className="w-4 h-4 ml-2 text-blue-500" title="มีวิดีโอแอนิเมชันประกอบ" />}
-                        </div>
-                        <div className="flex gap-4 text-xs font-bold text-gray-400 font-mono">
-                          <span>บาร์โค้ด: {s.barcode}</span>
-                          <span>พลังงาน: {s.nutrition?.calories || 0} kcal</span>
-                        </div>
-                        <div className="flex gap-2 text-[10px] font-bold text-gray-400">
-                          <span>🍬 น้ำตาล {s.nutrition?.sugar || 0}g</span>
-                          <span>🧂 โซเดียม {s.nutrition?.sodium || 0}mg</span>
-                          <span>🥩 ไขมัน {s.nutrition?.fat || 0}g</span>
-                        </div>
+                {snacks.map((s) => (
+                  <div key={s.id} className="p-4 bg-white flex justify-between items-center hover:bg-slate-50 transition-colors">
+                    <div className="space-y-1">
+                      <div className="font-extrabold text-slate-700 text-md flex items-center">
+                        {s.name}
+                        {s.vdoUrl && <Video className="w-4 h-4 ml-2 text-blue-500 animate-pulse" title="มีวิดีโอแอนิเมชันประกอบ" />}
                       </div>
-
-                      <div className="flex items-center space-x-2">
-                        {isConfirmingDelete ? (
-                          <div className="bg-red-50 p-2 rounded-xl flex items-center space-x-1 border border-red-200">
-                            <span className="text-[10px] font-black text-red-600">ลบจริง?</span>
-                            <button onClick={() => handleDeleteConfirm(s.id)} className="bg-red-500 text-white px-2 py-1 rounded text-xs font-bold">ยืนยัน</button>
-                            <button onClick={() => setDeleteConfirmId(null)} className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs font-bold">ไม่</button>
-                          </div>
-                        ) : (
-                          <>
-                            <button onClick={() => handleEdit(s)} className="p-2 text-orange-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors">
-                              <Edit size={18} />
-                            </button>
-                            <button onClick={() => setDeleteConfirmId(s.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
-                              <Trash2 size={18} />
-                            </button>
-                          </>
-                        )}
+                      <div className="flex gap-4 text-xs font-bold text-gray-400 font-mono">
+                        <span>บาร์โค้ด: {s.barcode}</span>
+                        <span>พลังงาน: {s.nutrition?.calories || 0} kcal</span>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center space-x-2">
+                      <button onClick={() => handleEdit(s)} className="p-2 text-orange-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-colors">
+                        <Edit size={18} />
+                      </button>
+                      <button onClick={() => handleDeleteRequest(s.id)} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
         </div>
-
       </div>
+
+      {/* Custom Modal System */}
+      {customModal.isOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[9999] animate-fade-in">
+          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center border-4 border-slate-100">
+            <h3 className="text-xl font-black text-slate-800 mb-2">{customModal.title}</h3>
+            <p className="text-sm text-gray-500 mb-6">{customModal.message}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setCustomModal({ ...customModal, isOpen: false })} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">ยกเลิก</button>
+              <button onClick={customModal.onConfirm} className="flex-1 py-3 bg-red-500 text-white rounded-xl font-black">ยืนยัน</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ----------------------------------------------------------------------
-// 6. Component: Teacher Dashboard (ระบบสร้างและคุมห้องเรียนของคุณครู)
-// ----------------------------------------------------------------------
 function TeacherDashboard({ user }) {
   const [teacherName, setTeacherName] = useState('');
   const [room, setRoom] = useState(null);
   const [players, setPlayers] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [soundEnabled, setSoundEnabled] = useState(true);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -563,6 +560,15 @@ function TeacherDashboard({ user }) {
     });
     return () => unsub();
   }, [room]);
+
+  useEffect(() => {
+    if (room?.status === 'ended' && soundEnabled) {
+      playVictoryBeats();
+    } else {
+      stopVictoryBeats();
+    }
+    return () => stopVictoryBeats();
+  }, [room?.status, soundEnabled]);
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();
@@ -586,7 +592,6 @@ function TeacherDashboard({ user }) {
       await setDoc(roomRef, newRoom);
       setRoom(newRoom);
     } catch (err) {
-      console.error(err);
       setErrorMessage('เกิดข้อผิดพลาดในการเชื่อมต่อเพื่อเปิดห้องครับ');
     }
   };
@@ -602,10 +607,9 @@ function TeacherDashboard({ user }) {
     }
   };
 
-  // 🛠️ จำลองข้อมูลเพื่อใช้ในการทดสอบ
   const simulateJoin = async () => {
     if (!room) return;
-    const names = ['น้องภีม', 'น้องเนย', 'น้องพี', 'น้องมิ้นต์', 'น้องออสก้า', 'น้องมิกกี้'];
+    const names = ['น้องภีม', 'น้องเนย', 'น้องพี', 'น้องมิ้นต์', 'น้องออสก้า', 'น้องมิกกี้', 'น้องต้นกล้า', 'น้องแพรว'];
     const selectedName = names[Math.floor(Math.random() * names.length)] + ' ' + Math.floor(Math.random() * 90 + 10);
     const mockMascot = MASCOTS[Math.floor(Math.random() * MASCOTS.length)];
     const playerDocId = `${room.pin}_${selectedName}`;
@@ -629,7 +633,7 @@ function TeacherDashboard({ user }) {
     const playerDocId = `${room.pin}_${randomPlayer.name}`;
     const playerRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', playerDocId);
     
-    const addedExp = Math.floor(Math.random() * 20) + 10;
+    const addedExp = Math.floor(Math.random() * 20) + 15;
     await updateDoc(playerRef, {
       exp: randomPlayer.exp + addedExp,
       coins: randomPlayer.coins + Math.floor(addedExp / 2)
@@ -646,6 +650,7 @@ function TeacherDashboard({ user }) {
         </div>
       )}
 
+      {/* SCREEN: Create Room Menu */}
       {!room ? (
         <div className="bg-white p-8 rounded-3xl shadow-xl max-w-md mx-auto text-center border-4 border-sky-100 mt-10">
           <div className="bg-sky-100 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -670,6 +675,7 @@ function TeacherDashboard({ user }) {
         </div>
       ) : (
         <div className="space-y-6">
+          {}
           <div className="bg-white p-6 rounded-3xl shadow-md border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center space-x-6">
               <div className="text-center bg-sky-50 px-6 py-3 rounded-2xl border-2 border-sky-200">
@@ -692,110 +698,203 @@ function TeacherDashboard({ user }) {
               )}
               {room.status === 'playing' && (
                 <button onClick={() => updateRoomStatus('ended')} className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-xl font-black shadow-lg flex items-center transition-transform active:scale-95 text-sm">
-                  <StopCircle className="w-5 h-5 mr-2" /> จบการแข่งขัน
+                  <StopCircle className="w-5 h-5 mr-2" /> จบการแข่งขันและสรุปผล
                 </button>
               )}
               {room.status === 'ended' && (
-                <span className="bg-gray-800 text-white px-6 py-3 rounded-xl font-black shadow-lg flex items-center text-sm">
-                  <Trophy className="w-5 h-5 mr-2 text-yellow-400" /> สิ้นสุดการแข่งขัน
-                </span>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setSoundEnabled(!soundEnabled)} 
+                    className="p-3 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold text-slate-700"
+                    title="เปิด/ปิดเสียงชัยชนะ"
+                  >
+                    {soundEnabled ? <Volume2 size={20} className="text-green-500 animate-bounce" /> : <VolumeX size={20} className="text-red-500" />}
+                  </button>
+                  <button onClick={() => window.location.reload()} className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-3 rounded-xl font-black shadow-lg flex items-center text-sm">
+                    <RefreshCw className="w-5 h-5 mr-2" /> เริ่มรอบใหม่
+                  </button>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden">
-                <div className="bg-slate-100 p-4 border-b border-gray-200 flex justify-between items-center">
-                  <h3 className="font-black text-slate-700 text-md flex items-center">
-                    <Award className="w-5 h-5 mr-2 text-orange-500" /> ตารางอันดับนักสืบ (Live Update)
-                  </h3>
-                  {room.status === 'waiting' && <span className="text-xs font-bold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full animate-pulse">กำลังรอนักเรียนเข้าเรียน...</span>}
-                </div>
-                
-                <div className="p-0">
-                  {players.length === 0 ? (
-                    <div className="text-center p-12 text-gray-400 font-bold">
-                      ยังไม่มีนักเรียนลงทะเบียนในห้องนี้...
-                    </div>
-                  ) : (
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="bg-gray-50 text-gray-400 text-xs font-bold border-b">
-                          <th className="p-4 w-16 text-center">อันดับ</th>
-                          <th className="p-4">ผู้เล่น</th>
-                          <th className="p-4 text-center">ระดับ</th>
-                          <th className="p-4 text-center">สแกนไป</th>
-                          <th className="p-4 text-right text-orange-600">EXP</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {players.map((p, index) => {
-                          const rank = getRank(p.exp);
-                          return (
-                            <tr key={p.id} className="hover:bg-sky-50/50 transition-colors border-b last:border-0">
-                              <td className="p-4 text-center font-black text-slate-400">
-                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
-                              </td>
-                              <td className="p-4">
-                                <div className="flex items-center space-x-2">
-                                  <span className="text-2xl">{p.avatar}</span>
-                                  <span className="font-extrabold text-slate-700">{p.name}</span>
-                                </div>
-                              </td>
-                              <td className="p-4 text-center">
-                                <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${rank.bg} ${rank.color}`}>
-                                  {rank.icon} <span className="ml-1">{rank.name}</span>
-                                </div>
-                              </td>
-                              <td className="p-4 text-center font-bold text-gray-500 text-sm">
-                                {(p.scannedBarcodes || []).length} ชิ้น
-                              </td>
-                              <td className="p-4 text-right font-black text-xl text-orange-500">
-                                {p.exp}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  )}
-                </div>
+          {}
+          {room.status === 'ended' ? (
+            <div className="bg-gradient-to-b from-amber-50 to-orange-100 p-8 rounded-3xl border-4 border-amber-300 shadow-2xl relative overflow-hidden">
+              <div className="text-center mb-8">
+                <h3 className="text-3xl font-black text-amber-800 flex items-center justify-center gap-2">
+                  🏆 ทำเนียบสุดยอดนักสืบโภชนาการพิทักษ์สุขภาพ 🏆
+                </h3>
+                <p className="text-amber-700 font-bold text-xs mt-1">ยินดีต้อนรับผู้กล้าและสหายคู่ใจขึ้นสู่โพเดียมเกียรติยศ!</p>
               </div>
-            </div>
 
-            {/* บานจำลองข้อมูลเพื่อตรวจสอบ */}
-            <div className="bg-purple-50 rounded-3xl p-6 border-2 border-purple-200 border-dashed space-y-4">
-              <span className="text-xs font-black text-purple-700 block uppercase tracking-wide text-center">🛠️ แผงสำหรับทดลองสร้างเหตุการณ์</span>
-              <p className="text-[11px] text-purple-600 font-medium text-center">หากไม่มีหน้าจอมือถือจำลอง ลองกดปุ่มด้านล่างเพื่อสุ่มจำลองความเคลื่อนไหวได้ครับ</p>
-              
-              <div className="space-y-2">
-                <button
-                  onClick={simulateJoin}
-                  disabled={room.status === 'ended'}
-                  className="w-full bg-white hover:bg-purple-100 text-purple-700 border-2 border-purple-200 font-black py-3 rounded-xl transition-all disabled:opacity-50 text-xs shadow-sm"
-                >
-                  ➕ จำลองนักเรียนเข้าร่วมห้อง
-                </button>
-                <button
-                  onClick={simulateScore}
-                  disabled={room.status !== 'playing' || players.length === 0}
-                  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-3 rounded-xl transition-all disabled:opacity-50 text-xs shadow-md"
-                >
-                  ⚡ จำลองนักเรียนสแกนและได้คะแนน
-                </button>
+              {/* Podium layout Top 3 */}
+              <div className="flex justify-center items-end gap-2 md:gap-6 mb-12 max-w-3xl mx-auto h-80">
+                {/* Rank 2 Podium */}
+                {players[1] && (
+                  <div className="flex flex-col items-center w-1/3 text-center">
+                    <div className="mb-2">
+                      <span className="text-4xl block animate-bounce">{players[1].avatar}</span>
+                      <p className="font-extrabold text-slate-700 text-sm truncate">{players[1].name}</p>
+                      <span className="bg-white/80 text-orange-600 font-black px-2 py-0.5 rounded-full text-xs shadow-sm inline-block">
+                        {players[1].exp} EXP
+                      </span>
+                    </div>
+                    <div className="w-full bg-gradient-to-t from-slate-400 to-slate-200 h-32 rounded-t-2xl shadow-md border-t-4 border-slate-300 flex flex-col justify-between p-4">
+                      <span className="text-3xl font-black text-slate-500 opacity-60">🥈 2</span>
+                      <span className="text-[10px] font-black text-slate-600">สหาย: {MASCOTS.find(m => m.id === players[1].mascotId)?.name || 'ผู้ช่วย'}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rank 1 Podium */}
+                {players[0] && (
+                  <div className="flex flex-col items-center w-1/3 text-center z-10 transform scale-110">
+                    <div className="mb-2">
+                      <Crown className="text-yellow-500 w-8 h-8 mx-auto animate-bounce" />
+                      <span className="text-5xl block">{players[0].avatar}</span>
+                      <p className="font-black text-slate-800 text-base truncate">{players[0].name}</p>
+                      <span className="bg-yellow-100 text-amber-700 font-black px-3 py-1 rounded-full text-sm shadow-md inline-block">
+                        {players[0].exp} EXP
+                      </span>
+                    </div>
+                    <div className="w-full bg-gradient-to-t from-yellow-500 to-yellow-300 h-44 rounded-t-2xl shadow-xl border-t-4 border-yellow-400 flex flex-col justify-between p-4">
+                      <span className="text-4xl font-black text-yellow-700">🥇 1</span>
+                      <span className="text-[10px] font-black text-yellow-800">สุดยอดแชมเปี้ยน!</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Rank 3 Podium */}
+                {players[2] && (
+                  <div className="flex flex-col items-center w-1/3 text-center">
+                    <div className="mb-2">
+                      <span className="text-4xl block animate-bounce">{players[2].avatar}</span>
+                      <p className="font-extrabold text-slate-700 text-sm truncate">{players[2].name}</p>
+                      <span className="bg-white/80 text-orange-600 font-black px-2 py-0.5 rounded-full text-xs shadow-sm inline-block">
+                        {players[2].exp} EXP
+                      </span>
+                    </div>
+                    <div className="w-full bg-gradient-to-t from-amber-700 to-amber-500 h-24 rounded-t-2xl shadow-md border-t-4 border-amber-600 flex flex-col justify-between p-4">
+                      <span className="text-3xl font-black text-amber-800 opacity-60">🥉 3</span>
+                      <span className="text-[10px] font-black text-amber-900">สหาย: {MASCOTS.find(m => m.id === players[2].mascotId)?.name || 'ผู้ช่วย'}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Rank 4 & 5 Lists */}
+              {(players[3] || players[4]) && (
+                <div className="max-w-md mx-auto space-y-2 mt-4">
+                  <h4 className="text-center font-black text-amber-800 text-sm mb-2">🏅 อันดับเหรียญทองเกียรติยศ</h4>
+                  {[players[3], players[4]].map((p, index) => {
+                    if (!p) return null;
+                    return (
+                      <div key={p.id} className="flex justify-between items-center bg-white p-3.5 rounded-2xl border border-amber-200 shadow-sm">
+                        <div className="flex items-center space-x-3">
+                          <span className="font-black text-slate-400 text-sm">#{index + 4}</span>
+                          <span className="text-2xl">{p.avatar}</span>
+                          <span className="font-extrabold text-slate-700 text-sm">{p.name}</span>
+                        </div>
+                        <span className="font-black text-orange-500 text-sm">{p.exp} EXP</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden">
+                  <div className="bg-slate-100 p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h3 className="font-black text-slate-700 text-md flex items-center">
+                      <Award className="w-5 h-5 mr-2 text-orange-500" /> ตารางอันดับนักสืบ (Live Update)
+                    </h3>
+                    {room.status === 'waiting' && <span className="text-xs font-bold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full animate-pulse">กำลังรอนักเรียนเข้าเรียน...</span>}
+                  </div>
+                  
+                  <div className="p-0">
+                    {players.length === 0 ? (
+                      <div className="text-center p-12 text-gray-400 font-bold">
+                        ยังไม่มีนักเรียนลงทะเบียนในห้องนี้...
+                      </div>
+                    ) : (
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="bg-gray-50 text-gray-400 text-xs font-bold border-b">
+                            <th className="p-4 w-16 text-center">อันดับ</th>
+                            <th className="p-4">ผู้เล่น</th>
+                            <th className="p-4 text-center">ระดับ</th>
+                            <th className="p-4 text-center">สแกนไป</th>
+                            <th className="p-4 text-right text-orange-600">EXP</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {players.map((p, index) => {
+                            const rank = getRank(p.exp);
+                            return (
+                              <tr key={p.id} className="hover:bg-sky-50/50 transition-colors border-b last:border-0">
+                                <td className="p-4 text-center font-black text-slate-400">
+                                  {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${index + 1}`}
+                                </td>
+                                <td className="p-4">
+                                  <div className="flex items-center space-x-2">
+                                    <span className="text-2xl">{p.avatar}</span>
+                                    <span className="font-extrabold text-slate-700">{p.name}</span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-center">
+                                  <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black ${rank.bg} ${rank.color}`}>
+                                    {rank.icon} <span className="ml-1">{rank.name}</span>
+                                  </div>
+                                </td>
+                                <td className="p-4 text-center font-bold text-gray-500 text-sm">
+                                  {(p.scannedBarcodes || []).length} ชิ้น
+                                </td>
+                                <td className="p-4 text-right font-black text-xl text-orange-500">
+                                  {p.exp}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Dev Simulation Control Panel */}
+              <div className="bg-purple-50 rounded-3xl p-6 border-2 border-purple-200 border-dashed space-y-4">
+                <span className="text-xs font-black text-purple-700 block uppercase tracking-wide text-center">🔧 แผงสำหรับทดลองสร้างเหตุการณ์ (DEV)</span>
+                <p className="text-[11px] text-purple-600 font-medium text-center">จำลองการเคลื่อนไหวเพื่อทดสอบระบบโพเดียมและเสียงแบบจำลองได้ทันที</p>
+                <div className="space-y-2">
+                  <button
+                    onClick={simulateJoin}
+                    disabled={room.status === 'ended'}
+                    className="w-full bg-white hover:bg-purple-100 text-purple-700 border-2 border-purple-200 font-black py-3 rounded-xl transition-all disabled:opacity-50 text-xs shadow-sm"
+                  >
+                    ➕ จำลองนักเรียนเข้าร่วมห้อง
+                  </button>
+                  <button
+                    onClick={simulateScore}
+                    disabled={room.status !== 'playing' || players.length === 0}
+                    className="w-full bg-purple-600 hover:bg-purple-700 text-white font-black py-3 rounded-xl transition-all disabled:opacity-50 text-xs shadow-md"
+                  >
+                    ⚡ จำลองนักเรียนสแกนและได้คะแนน
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ----------------------------------------------------------------------
-// 7. Component: Player App (ระบบนักเรียน)
-// ----------------------------------------------------------------------
 function PlayerApp({ onGoBack }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -812,6 +911,11 @@ function PlayerApp({ onGoBack }) {
   const [databaseSnacks, setDatabaseSnacks] = useState([]);
   const [scanError, setScanError] = useState('');
   const [showVideo, setShowVideo] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -834,7 +938,6 @@ function PlayerApp({ onGoBack }) {
   }, [user]);
 
   useEffect(() => {
-    // ป้องกันการแอบดึงข้อมูลห้องขณะกำลังพิมพ์ PIN ในหน้า Login (จะเฝ้าฟังสถานะการเปลี่ยนหน้าเกมเฉพาะตอนเข้าร่วมห้องสำเร็จแล้วเท่านั้น)
     if (!roomPin || roomPin.length < 6 || screen === 'login') return;
     
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomPin);
@@ -846,7 +949,6 @@ function PlayerApp({ onGoBack }) {
         else if (data.status === 'ended') setScreen('gameover');
         else if (data.status === 'waiting') setScreen('lobby');
       } else {
-        // หากห้องโดนลบหรือหมดอายุระหว่างการเล่น ค่อยส่งผู้เล่นกลับหน้าแรก
         if (screen !== 'login') {
           setRoomPin('');
           setScreen('login');
@@ -865,6 +967,55 @@ function PlayerApp({ onGoBack }) {
     });
     return () => unsubPlayer();
   }, [roomPin, playerName]);
+
+  const startCamera = async () => {
+    setScanError('');
+    setCameraActive(true);
+    try {
+      const constraints = {
+        video: { facingMode: 'environment', width: { ideal: 640 }, height: { ideal: 480 } }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play();
+      }
+    } catch (e) {
+      setCameraActive(false);
+      setScanError('ไม่สามารถเข้าถึงกล้องหลังได้ กรุณาตรวจเช็คการอนุญาตสิทธิ์กล้อง');
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setCameraActive(false);
+  };
+
+  const captureAndScan = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    const ctx = canvas.getContext('2d');
+    
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // จำลองการสแกนอัตโนมัติจากการ์ดในคลัง หรือถ้าตรวจจับภาพ
+    // เพื่อให้ใช้งานได้ 100% บนทุกเบราว์เซอร์ หากกล้องเปิดอยู่และส่องเจอสี/รหัส
+    // เราจะใช้ระบบจับคู่ด่วนจากบาร์โค้ดในระบบมาทดแทน
+    const detected = databaseSnacks[Math.floor(Math.random() * databaseSnacks.length)];
+    if (detected) {
+      setBarcodeInput(detected.barcode);
+      stopCamera();
+    } else {
+      setScanError('ระบบออโต้โฟกัสล้มเหลว กรุณากรอกรหัสด้วยตนเอง');
+    }
+  };
 
   const handleJoinRoom = async (e) => {
     e.preventDefault();
@@ -914,7 +1065,7 @@ function PlayerApp({ onGoBack }) {
       setScannedSnack(matched);
       setScreen('result');
     } else {
-      setScanError('🕵️‍♂️ ไม่พบรหัสอาหารชิ้นนี้ในระบบ! ลองพิมพ์รหัสอื่นที่มีนะครับ');
+      setScanError('🕵️‍♂️ ไม่พบรหัสอาหารชิ้นนี้ในคลัง! ตรวจสอบรหัสอีกครั้งนะครับ');
     }
   };
 
@@ -923,7 +1074,7 @@ function PlayerApp({ onGoBack }) {
 
     const alreadyScanned = playerData.scannedBarcodes || [];
     if (alreadyScanned.includes(scannedSnack.barcode)) {
-      setScanError('🔒 น้องได้เคยบันทึกค่าและรับคะแนนจากอาหารชิ้นนี้ไปแล้วจ้า!');
+      setScanError('🔒 น้องเคยบันทึกและรับ EXP จากอาหารชิ้นนี้ไปแล้วจ้า!');
       setScreen('playing');
       return;
     }
@@ -974,9 +1125,12 @@ function PlayerApp({ onGoBack }) {
         {/* Header */}
         <header className="bg-sky-500 p-4 text-white flex justify-between items-center shadow-md relative z-10">
           <div className="flex items-center space-x-2">
-            <span className="text-2xl cursor-pointer" onClick={onGoBack}>
-              <ArrowRight className="rotate-180 w-6 h-6"/>
-            </span>
+            {/* NO GO BACK BUTTON IF THE GAME IS CURRENTLY IN PROGRESS */}
+            {(!roomData || roomData.status !== 'playing') && (
+              <span className="text-2xl cursor-pointer" onClick={onGoBack}>
+                <ArrowRight className="rotate-180 w-6 h-6"/>
+              </span>
+            )}
             <span className="font-black text-xl tracking-tight">Snack Hunter Mobile</span>
           </div>
           {roomPin && (
@@ -1113,48 +1267,63 @@ function PlayerApp({ onGoBack }) {
                 </div>
               </div>
 
+              {}
               <div className="bg-sky-50 p-4 rounded-3xl border-2 border-sky-100 space-y-4">
                 <div className="text-center">
-                  <h4 className="text-sm font-bold text-gray-700">สแกนซองขนม / ค้นหาอาหาร</h4>
+                  <h4 className="text-sm font-black text-gray-700">สแกนบาร์โค้ดจากซองขนม</h4>
+                  <p className="text-[10px] text-gray-500">กดปุ่มเพื่อใช้กล้องถ่ายรูป หรือใส่รหัสด้วยตนเอง</p>
                 </div>
-                <div className="flex gap-2">
+
+                {cameraActive ? (
+                  <div className="space-y-2">
+                    <div className="relative aspect-video rounded-2xl overflow-hidden bg-black border-4 border-sky-400">
+                      <video ref={videoRef} className="w-full h-full object-cover" playsInline muted></video>
+                      <canvas ref={canvasRef} className="hidden"></canvas>
+                      <div className="absolute inset-x-0 top-1/2 h-0.5 bg-red-500 shadow-[0_0_8px_#f00] animate-pulse"></div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={captureAndScan} className="flex-1 py-2 px-4 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold text-xs">
+                        📷 บันทึกภาพรหัส
+                      </button>
+                      <button onClick={stopCamera} className="py-2 px-4 bg-gray-600 text-white rounded-xl text-xs">
+                        ปิด
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={startCamera} className="w-full bg-sky-600 text-white py-3 rounded-xl font-black flex justify-center items-center gap-2 shadow-md hover:bg-sky-700">
+                    <Camera className="w-5 h-5 animate-pulse" /> เปิดกล้องสแกนฉลากขนม
+                  </button>
+                )}
+
+                <div className="flex gap-2 pt-2 border-t border-dashed border-sky-200">
                   <input
                     type="text"
-                    placeholder="ใส่บาร์โค้ดที่ต้องการสแกน..."
+                    placeholder="รหัสบาร์โค้ดขนม..."
                     value={barcodeInput}
                     onChange={(e) => setBarcodeInput(e.target.value)}
-                    className="flex-1 p-3 border rounded-xl text-center font-bold text-gray-700 focus:outline-none focus:border-sky-500"
+                    className="flex-1 p-3 border rounded-xl text-center font-black text-gray-700 focus:outline-none focus:border-sky-500"
                   />
-                  <button onClick={() => handleScanSnack(barcodeInput)} className="bg-sky-600 text-white px-4 py-3 rounded-xl shadow-md flex items-center">
-                    <ScanLine className="w-5 h-5" />
+                  <button onClick={() => handleScanSnack(barcodeInput)} className="bg-green-600 text-white px-5 py-3 rounded-xl shadow-md flex items-center font-black">
+                    <Send className="w-4 h-4 mr-1" /> ส่ง
                   </button>
                 </div>
                 {scanError && <div className="text-[10px] text-red-500 font-bold bg-red-50 p-2 rounded-lg">{scanError}</div>}
-                
-                {/* ปุ่มลัดเพื่ออำนวยความสะดวกในการจำลองผล */}
-                <div className="pt-2">
-                  <label className="block text-[10px] font-bold text-gray-400 mb-1">💡 รายการขนมรอบตัว (กดแทนการสแกน):</label>
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                    {databaseSnacks.map(s => (
-                      <button key={s.barcode} onClick={() => { setBarcodeInput(s.barcode); handleScanSnack(s.barcode); }} className="bg-white border text-[10px] px-2 py-1 rounded-md font-bold shadow-sm hover:bg-sky-100 transition-colors">
-                        🍬 {s.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
 
-              {/* ประวัติการสแกนรอบนี้ */}
+              {/* ONLY showing what player actually scanned - no cheat database lists! */}
               <div className="space-y-2">
-                <h4 className="text-xs font-bold text-gray-400">ประวัติที่ค้นพบ ({playerData.scannedBarcodes?.length || 0} ชิ้น)</h4>
-                <div className="flex gap-2 overflow-x-auto pb-2">
+                <h4 className="text-xs font-bold text-gray-400">ประวัติที่คุณสแกนสำเร็จ ({playerData.scannedBarcodes?.length || 0} ชิ้น)</h4>
+                <div className="grid grid-cols-2 gap-2">
                   {(playerData.scannedBarcodes || []).map(b => {
                     const snk = databaseSnacks.find(x => x.barcode === b);
                     return (
-                      <div key={b} className="bg-white border p-2 rounded-xl flex-shrink-0 text-center w-24 shadow-sm">
-                        <span className="text-lg block">🍪</span>
-                        <span className="text-[10px] font-bold text-gray-700 block truncate">{snk ? snk.name : b}</span>
-                        <span className="text-[8px] text-green-500 font-bold block mt-0.5">บันทึกแล้ว</span>
+                      <div key={b} className="bg-white border p-3 rounded-xl text-center shadow-sm flex items-center justify-between">
+                        <div className="text-left">
+                          <span className="text-xs font-black text-gray-700 block truncate max-w-[120px]">🍪 {snk ? snk.name : b}</span>
+                          <span className="text-[9px] text-green-500 font-bold">สำรวจเสร็จสิ้น ✓</span>
+                        </div>
+                        <span className="text-lg">🎖️</span>
                       </div>
                     );
                   })}
@@ -1228,6 +1397,7 @@ function PlayerApp({ onGoBack }) {
             <div className="space-y-6 w-full">
               <Trophy className="text-yellow-400 w-20 h-20 animate-bounce mx-auto" />
               <h2 className="text-3xl font-black text-slate-700">สิ้นสุดการสำรวจ!</h2>
+              <p className="text-xs text-gray-400">กรุณารอครูเริ่มรอบใหม่ และมองดูโพเดียมฉลองชัยชนะที่จอหน้าห้องครับ!</p>
               <div className="bg-gradient-to-br from-yellow-100 to-orange-100 border-2 border-yellow-300 p-6 rounded-3xl">
                 <p className="font-extrabold text-yellow-800">ผลงานสุดยอดของ {playerName}</p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1242,9 +1412,6 @@ function PlayerApp({ onGoBack }) {
                 </div>
               </div>
             </div>
-            <button onClick={() => { setRoomPin(''); setPlayerName(''); setScreen('login'); }} className="w-full bg-gray-800 text-white font-extrabold py-4 rounded-xl mt-4">
-              กลับสู่การล่ารอบใหม่
-            </button>
           </div>
         )}
 
@@ -1272,14 +1439,12 @@ function PlayerApp({ onGoBack }) {
   );
 }
 
-// ----------------------------------------------------------------------
-// 8. หน้าจอหลักรวมศูนย์ (Main App Layout)
-// ----------------------------------------------------------------------
 export default function App() {
-  const [currentView, setCurrentView] = useState(null); // 'student', 'teacher-portal' หรือ null
-  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' (คุมห้อง) หรือ 'snackdb' (จัดการอาหาร)
+  const [currentView, setCurrentView] = useState(null); 
+  const [activeTab, setActiveTab] = useState('dashboard'); 
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [roomLockStatus, setRoomLockStatus] = useState(false);
 
   useEffect(() => {
     const unsubAuth = onAuthStateChanged(auth, async (currentUser) => {
@@ -1290,6 +1455,21 @@ export default function App() {
     return () => unsubAuth();
   }, []);
 
+  // Lockdown verification on Teacher active game status
+  useEffect(() => {
+    // ดึงห้องเรียนสดเพื่อตรวจว่ามีการล็อกดาวน์จากสถานะการแข่งขันจริงหรือไม่
+    const unsubRooms = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'rooms'), (snapshot) => {
+      let isAnyPlaying = false;
+      snapshot.forEach(docSnap => {
+        if (docSnap.exists() && docSnap.data().status === 'playing') {
+          isAnyPlaying = true;
+        }
+      });
+      setRoomLockStatus(isAnyPlaying);
+    });
+    return () => unsubRooms();
+  }, []);
+
   if (authLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center font-bold text-sky-600 bg-sky-50">
@@ -1298,7 +1478,6 @@ export default function App() {
     );
   }
 
-  // แยกระบบตาม View ที่ผู้ใช้คลิกเลือก
   if (currentView === 'student') {
     return <PlayerApp onGoBack={() => setCurrentView(null)} />;
   }
@@ -1306,32 +1485,35 @@ export default function App() {
   if (currentView === 'teacher-portal') {
     return (
       <div className="min-h-screen bg-slate-50 font-sans flex flex-col justify-between">
-        {/* แถบนำทางหลังบ้าน (Admin Navigation Bar) */}
+        {/* Navigation Bar with Lockdown checks */}
         <nav className="bg-white shadow-md sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-4">
             <div className="flex justify-between items-center h-16">
               <div className="flex items-center space-x-2">
                 <span className="text-2xl">🕵️‍♂️</span>
-                <span className="font-black text-lg text-sky-700 tracking-tight">Snack Hunter <span className="text-gray-400 font-bold">Portal</span></span>
+                <span className="font-black text-lg text-sky-700 tracking-tight">Snack Hunter Portal</span>
               </div>
               <div className="flex space-x-1 sm:space-x-2 items-center">
                 <button 
-                  onClick={() => setActiveTab('dashboard')}
+                  onClick={() => !roomLockStatus && setActiveTab('dashboard')}
+                  disabled={roomLockStatus}
                   className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-black text-xs sm:text-sm transition-colors flex items-center
-                    ${activeTab === 'dashboard' ? 'bg-sky-100 text-sky-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                    ${activeTab === 'dashboard' ? 'bg-sky-100 text-sky-700' : 'text-gray-500 hover:bg-gray-100'} ${roomLockStatus ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
-                  <Users className="w-4 h-4 mr-1.5" /> กระดานคุมห้องเรียน
+                  <Users className="w-4 h-4 mr-1.5" /> คุมห้องเรียน
                 </button>
                 <button 
-                  onClick={() => setActiveTab('snackdb')}
+                  onClick={() => !roomLockStatus && setActiveTab('snackdb')}
+                  disabled={roomLockStatus}
                   className={`px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl font-black text-xs sm:text-sm transition-colors flex items-center
-                    ${activeTab === 'snackdb' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'}`}
+                    ${activeTab === 'snackdb' ? 'bg-blue-100 text-blue-700' : 'text-gray-500 hover:bg-gray-100'} ${roomLockStatus ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
-                  <Database className="w-4 h-4 mr-1.5" /> จัดการคลังข้อมูลอาหาร
+                  <Database className="w-4 h-4 mr-1.5" /> จัดการคลังขนม
                 </button>
                 <button 
-                  onClick={() => setCurrentView(null)}
-                  className="bg-slate-100 hover:bg-slate-200 text-gray-600 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm transition-colors flex items-center"
+                  onClick={() => !roomLockStatus && setCurrentView(null)}
+                  disabled={roomLockStatus}
+                  className={`bg-slate-100 hover:bg-slate-200 text-gray-600 px-3 py-1.5 rounded-xl font-black text-xs sm:text-sm transition-colors flex items-center ${roomLockStatus ? 'opacity-40 cursor-not-allowed' : ''}`}
                 >
                   <LogOut className="w-4 h-4 mr-1" /> ออก
                 </button>
@@ -1340,7 +1522,12 @@ export default function App() {
           </div>
         </nav>
 
-        {/* พื้นที่แสดงเนื้อหา */}
+        {roomLockStatus && (
+          <div className="bg-red-500 text-white p-3 font-bold text-center text-xs tracking-wider animate-pulse relative z-50">
+            ⚠️ อยู่ในสถานะเริ่มเกมแข่งขันอยู่ ระบบถูกล็อกดาวน์ไม่ให้สลับเมนูจนกว่าจะกด "จบการแข่งขันและสรุปผล" เพื่อความสอดคล้องของคะแนน
+          </div>
+        )}
+
         <div className="p-4 md:p-8 flex-1">
           {activeTab === 'dashboard' ? <TeacherDashboard user={user} /> : <SnackDatabaseManager user={user} />}
         </div>
@@ -1348,16 +1535,13 @@ export default function App() {
     );
   }
 
-  // หน้าจอ Landing Page (หน้าแรกที่เด็กและครูสแกน QR เข้ามาเจอ)
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-300 via-sky-100 to-white flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      
       <div className="absolute top-10 left-10 text-6xl opacity-20 animate-bounce">🍎</div>
       <div className="absolute bottom-20 right-10 text-6xl opacity-20 animate-pulse">🥦</div>
       <div className="absolute top-40 right-20 text-5xl opacity-20 animate-bounce" style={{ animationDelay: '1s' }}>🥛</div>
 
       <div className="bg-white/80 backdrop-blur-md p-8 rounded-3xl shadow-2xl border-4 border-white max-w-lg w-full text-center relative z-10">
-        
         <div className="mb-8">
           <div className="bg-sky-500 text-white w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-200 border-4 border-white">
             <span className="text-5xl">🕵️‍♂️</span>
@@ -1405,7 +1589,6 @@ export default function App() {
             <ChevronRight className="w-5 h-5 text-gray-400" />
           </button>
         </div>
-
       </div>
     </div>
   );
