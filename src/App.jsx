@@ -23,11 +23,11 @@ import {
 
 // === CONSTANTS & INITIAL DATA ===
 const INITIAL_SNACKS = [
-  { id: "S001", name: "เลย์ รสออริจินัล", calories: 160, sugar: 1, fat: 10, sodium: 170, rating: "good", image: "🥔" },
-  { id: "S002", name: "ป๊อกกี้ รสช็อกโกแลต", calories: 200, sugar: 12, fat: 8, sodium: 90, rating: "caution", image: "🍫" },
-  { id: "S003", name: "เยลลี่หมีฮาริโบ", calories: 120, sugar: 18, fat: 0, sodium: 15, rating: "bad", image: "🧸" },
-  { id: "S004", name: "นมจืดตราหมี", calories: 90, sugar: 4, fat: 5, sodium: 45, rating: "excellent", image: "🥛" },
-  { id: "S005", name: "แอปเปิ้ลกรอบฟรีซดราย", calories: 60, sugar: 8, fat: 0, sodium: 0, rating: "excellent", image: "🍎" }
+  { id: "S001", name: "เลย์ รสออริจินัล", type: "snack", calories: 160, sugar: 1, fat: 10, sodium: 170, rating: "good", image: "🥔" },
+  { id: "S002", name: "ป๊อกกี้ รสช็อกโกแลต", type: "snack", calories: 200, sugar: 12, fat: 8, sodium: 90, rating: "caution", image: "🍫" },
+  { id: "S003", name: "เยลลี่หมีฮาริโบ", type: "snack", calories: 120, sugar: 18, fat: 0, sodium: 15, rating: "bad", image: "🧸" },
+  { id: "S004", name: "นมจืดตราหมี", type: "drink", calories: 90, sugar: 4, fat: 5, sodium: 45, rating: "excellent", image: "🥛" },
+  { id: "S005", name: "แอปเปิ้ลกรอบฟรีซดราย", type: "snack", calories: 60, sugar: 8, fat: 0, sodium: 0, rating: "excellent", image: "🍎" }
 ];
 
 const MASCOTS = [
@@ -58,6 +58,7 @@ export default function App() {
   // === NEW SNACK FORM STATE ===
   const [newSnackId, setNewSnackId] = useState('');
   const [newSnackName, setNewSnackName] = useState('');
+  const [newSnackType, setNewSnackType] = useState('snack'); // 'snack' | 'drink' | 'bakery'
   const [newSnackCal, setNewSnackCal] = useState('');
   const [newSnackSugar, setNewSnackSugar] = useState('');
   const [newSnackFat, setNewSnackFat] = useState('');
@@ -67,6 +68,7 @@ export default function App() {
 
   // === STUDENT STATE ===
   const [studentName, setStudentName] = useState('');
+  const [enteredPin, setEnteredPin] = useState(''); // เพิ่มตัวแปรเก็บรหัสพินที่ป้อนโดยเด็กเรียน
   const [selectedMascot, setSelectedMascot] = useState(MASCOTS[0]);
   const [currentStudentId, setCurrentStudentId] = useState('');
   const [studentJoined, setStudentJoined] = useState(false);
@@ -213,6 +215,8 @@ export default function App() {
     setActiveRoom(null);
     setStudentJoined(false);
     setStudentScannedList([]);
+    setEnteredPin('');
+    setStudentName('');
   };
 
   const handleAddSnack = (e) => {
@@ -228,6 +232,7 @@ export default function App() {
     const item = {
       id: newSnackId,
       name: newSnackName,
+      type: newSnackType, // บันทึกประเภทขนม/เครื่องดื่ม
       calories: Number(newSnackCal) || 0,
       sugar: Number(newSnackSugar) || 0,
       fat: Number(newSnackFat) || 0,
@@ -242,10 +247,12 @@ export default function App() {
     // Reset Form
     setNewSnackId('');
     setNewSnackName('');
+    setNewSnackType('snack');
     setNewSnackCal('');
     setNewSnackSugar('');
     setNewSnackFat('');
     setNewSnackSodium('');
+    setNewSnackRating('good');
     setNewSnackImage('🍿');
   };
 
@@ -257,7 +264,12 @@ export default function App() {
   // === STUDENT FUNCTIONS ===
   const handleStudentJoin = (e) => {
     e.preventDefault();
-    if (!studentName.trim() || !activeRoom) return;
+    if (!studentName.trim()) return;
+
+    if (!activeRoom || enteredPin !== activeRoom.roomId) {
+      alert("ไม่พบรหัสห้องเรียนนี้ หรือรหัสห้องเรียนไม่ถูกต้อง!");
+      return;
+    }
 
     // Check if game is in waiting state
     if (activeRoom.status !== 'waiting') {
@@ -368,7 +380,7 @@ export default function App() {
       case 'excellent': return <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-bold">ยอดเยี่ยม 🌟</span>;
       case 'good': return <span className="bg-green-100 text-green-800 text-xs px-2.5 py-0.5 rounded-full font-bold">มีประโยชน์ 👍</span>;
       case 'caution': return <span className="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-bold">ควรระวัง ⚠️</span>;
-      case 'bad': return <span className="bg-red-100 text-red-800 text-xs px-2.5 py-0.5 rounded-full font-bold font-bold">หลีกเลี่ยง 🚫</span>;
+      case 'bad': return <span className="bg-red-100 text-red-800 text-xs px-2.5 py-0.5 rounded-full font-bold">หลีกเลี่ยง 🚫</span>;
       default: return null;
     }
   };
@@ -390,7 +402,7 @@ export default function App() {
             <h1 className="font-extrabold text-lg text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-400 tracking-wide">
               SNACK HUNTER
             </h1>
-            <p className="text-xs text-slate-400">เกมล่าขนมจอมพลัง พลังงานอัจฉริยะ v3.1</p>
+            <p className="text-xs text-slate-400">เกมล่าขนมจอมพลัง พลังงานอัจฉริยะ v3.2</p>
           </div>
         </div>
 
@@ -623,13 +635,25 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-1">ประเภท</label>
+                      <select 
+                        value={newSnackType}
+                        onChange={(e) => setNewSnackType(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-amber-500 text-slate-100"
+                      >
+                        <option value="snack">🍿 ขนมขบเคี้ยว</option>
+                        <option value="drink">🥤 เครื่องดื่ม</option>
+                        <option value="bakery">🍰 เบเกอรี่</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs font-bold text-slate-400 uppercase mb-1">เกรดโภชนาการ</label>
                       <select 
                         value={newSnackRating}
                         onChange={(e) => setNewSnackRating(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-slate-100"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-amber-500 text-slate-100"
                       >
                         <option value="excellent">ยอดเยี่ยม 🌟</option>
                         <option value="good">มีประโยชน์ 👍</option>
@@ -638,17 +662,18 @@ export default function App() {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-400 uppercase mb-1">สัญลักษณ์ / Emoji</label>
+                      <label className="block text-xs font-bold text-slate-400 uppercase mb-1">สัญลักษณ์</label>
                       <select 
                         value={newSnackImage}
                         onChange={(e) => setNewSnackImage(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-amber-500 text-slate-100"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-2 py-2 text-xs focus:outline-none focus:border-amber-500 text-slate-100"
                       >
                         <option value="🍿">🍿 ป๊อปคอร์น</option>
                         <option value="🍫">🍫 ช็อกโกแลต</option>
-                        <option value="🍬">🍬 ลูกอมลูกกวาด</option>
+                        <option value="🍬">🍬 ลูกอม</option>
                         <option value="🍩">🍩 โดนัท</option>
                         <option value="🥛">🥛 นมกล่อง</option>
+                        <option value="🥤">🥤 เครื่องดื่ม</option>
                         <option value="🍎">🍎 แอปเปิ้ล</option>
                         <option value="🍪">🍪 คุกกี้</option>
                         <option value="🥔">🥔 เลย์มันฝรั่ง</option>
@@ -686,6 +711,9 @@ export default function App() {
                             <h4 className="font-bold text-slate-100">{snack.name}</h4>
                             <span className="bg-slate-800 border border-slate-700 text-amber-400 text-[10px] px-2 py-0.5 rounded font-mono">
                               QR: {snack.id}
+                            </span>
+                            <span className="bg-slate-700 text-slate-300 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                              {snack.type === 'drink' ? '🥤 เครื่องดื่ม' : snack.type === 'bakery' ? '🍰 เบเกอรี่' : '🍿 ขนม'}
                             </span>
                           </div>
                           <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-1">
@@ -1063,13 +1091,9 @@ export default function App() {
                     type="number"
                     required
                     placeholder="เช่น 123456"
+                    value={enteredPin}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-center text-2xl font-black font-mono focus:outline-none focus:border-emerald-500 text-slate-100 tracking-widest"
-                    onChange={(e) => {
-                      const inputPin = e.target.value;
-                      if (activeRoom && inputPin !== activeRoom.roomId) {
-                        // Keep track but show state
-                      }
-                    }}
+                    onChange={(e) => setEnteredPin(e.target.value)}
                   />
                   {activeRoom && (
                     <p className="text-[10px] text-slate-500 mt-1 text-center">
