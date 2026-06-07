@@ -834,7 +834,9 @@ function PlayerApp({ onGoBack }) {
   }, [user]);
 
   useEffect(() => {
-    if (!roomPin) return;
+    // ป้องกันการแอบดึงข้อมูลห้องขณะกำลังพิมพ์ PIN ในหน้า Login (จะเฝ้าฟังสถานะการเปลี่ยนหน้าเกมเฉพาะตอนเข้าร่วมห้องสำเร็จแล้วเท่านั้น)
+    if (!roomPin || roomPin.length < 6 || screen === 'login') return;
+    
     const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomPin);
     const unsubRoom = onSnapshot(roomRef, (docSnap) => {
       if (docSnap.exists()) {
@@ -844,12 +846,15 @@ function PlayerApp({ onGoBack }) {
         else if (data.status === 'ended') setScreen('gameover');
         else if (data.status === 'waiting') setScreen('lobby');
       } else {
-        setRoomPin('');
-        setScreen('login');
+        // หากห้องโดนลบหรือหมดอายุระหว่างการเล่น ค่อยส่งผู้เล่นกลับหน้าแรก
+        if (screen !== 'login') {
+          setRoomPin('');
+          setScreen('login');
+        }
       }
     });
     return () => unsubRoom();
-  }, [roomPin]);
+  }, [roomPin, screen]);
 
   useEffect(() => {
     if (!roomPin || !playerName) return;
